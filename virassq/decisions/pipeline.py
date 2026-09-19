@@ -27,11 +27,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from segonaut.reference.composite.decisions.one_sided_pairs import (
+from virassq.decisions.one_sided_pairs import (
     LINK_COLUMNS,
     find_reciprocal_one_sided_pairs,
 )
-from segonaut.reference.composite.decisions.peak_rules import (
+from virassq.decisions.peak_rules import (
     LAYOUT_COLUMNS,
     add_diamond_annotation_difference_flags,
     add_peak_rule_flags,
@@ -40,7 +40,7 @@ from segonaut.reference.composite.decisions.peak_rules import (
     mark_nearby_two_sided_alternative_layouts,
     summarize_nearby_alternative_layouts,
 )
-from segonaut.reference.composite.decisions.thresholds import (
+from virassq.decisions.thresholds import (
     DEFAULT_PEAK_DECISION_THRESHOLDS,
     PeakDecisionThresholds,
     validate_peak_decision_thresholds,

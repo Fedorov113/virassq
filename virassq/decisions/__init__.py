@@ -1,7 +1,7 @@
 """Public entry points for peak-based composite decisions."""
 
-from segonaut.reference.composite.decisions.pipeline import decide_peak_actions
-from segonaut.reference.composite.decisions.thresholds import (
+from virassq.decisions.pipeline import decide_peak_actions
+from virassq.decisions.thresholds import (
     DEFAULT_PEAK_DECISION_THRESHOLDS,
     PeakDecisionThresholds,
 )

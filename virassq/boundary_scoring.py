@@ -37,10 +37,10 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from segonaut.reference.composite.boundaries import (
+from virassq.boundaries import (
     score_boundary_positions,
 )
-from segonaut.sql import parquet_columns, quote_sql_string
+from virassq.sql import parquet_columns, quote_sql_string
 
 QUERY_COLUMNS = {"representative_contig_id"}
 ALIGNMENT_COLUMNS = {
@@ -505,7 +505,7 @@ def score_selected_representatives(
     summary_partial.replace(summary)
     elapsed_seconds = round(time.monotonic() - started, 3)
     result: dict[str, object] = {
-        "schema": "segonaut.boundary_scores.v4",
+        "schema": "virassq.boundary_scores.v4",
         "created_at": datetime.now(UTC).isoformat(),
         "queries": str(queries),
         "alignments": str(alignments),

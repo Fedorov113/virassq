@@ -11,7 +11,7 @@ directions. A returned pair therefore remains directly auditable.
 
 import pandas as pd
 
-from segonaut.reference.composite.decisions.thresholds import (
+from virassq.decisions.thresholds import (
     PeakDecisionThresholds,
 )
 

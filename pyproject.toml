@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "virassq"
+version = "0.1.0"
+description = "Find structural inconsistencies in viral representatives using contig-clustering alignments."
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = [
+  "duckdb>=1.4.0",
+  "numpy>=2.0.0",
+  "pandas>=2.2.0",
+  "pyarrow>=16.0.0",
+]
+
+[project.urls]
+Repository = "https://github.com/Fedorov113/virassq"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["virassq*"]

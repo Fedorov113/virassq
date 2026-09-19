@@ -41,7 +41,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from segonaut.sql import parquet_columns, quote_sql_string
+from virassq.sql import parquet_columns, quote_sql_string
 
 PROFILE_COLUMNS = {
     "query_id",
@@ -493,7 +493,7 @@ def select_boundary_score_peaks(
     )
 
     result: dict[str, object] = {
-        "schema": "segonaut.boundary_score_peaks.v1",
+        "schema": "virassq.boundary_score_peaks.v1",
         "created_at": datetime.now(UTC).isoformat(),
         "profiles": str(profiles),
         "boundary_score_peaks": str(output),

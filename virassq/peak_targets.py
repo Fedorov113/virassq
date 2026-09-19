@@ -39,7 +39,7 @@ from pathlib import Path
 
 import duckdb
 
-from segonaut.sql import parquet_columns, quote_sql_string
+from virassq.sql import parquet_columns, quote_sql_string
 
 PEAK_COLUMNS = {
     "peak_id",

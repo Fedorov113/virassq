@@ -25,7 +25,7 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from segonaut.reference.composite.alignments import MMSEQS_FORMAT_OUTPUT
+from virassq.alignments import MMSEQS_FORMAT_OUTPUT
 
 
 def mmseqs_database_exists(prefix: Path) -> bool:
@@ -214,7 +214,7 @@ def run_raw_clustering(
         raise RuntimeError("MMseqs2 did not produce the representative FASTA")
 
     manifest = {
-        "schema": "segonaut.persisted_raw_clustering.v1",
+        "schema": "virassq.persisted_raw_clustering.v1",
         "created_at": datetime.now(UTC).isoformat(),
         "contigs": str(contigs),
         "commands": commands,
@@ -292,7 +292,7 @@ def export_search_alignments(
         raise RuntimeError(f"MMseqs2 produced no alignment rows: {output_tsv}")
 
     manifest = {
-        "schema": "segonaut.mmseqs_alignment_export.v1",
+        "schema": "virassq.mmseqs_alignment_export.v1",
         "sequence_database": str(sequence_database),
         "result_database": str(result_database),
         "output_tsv": str(output_tsv),

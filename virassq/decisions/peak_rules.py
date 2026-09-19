@@ -130,7 +130,7 @@ from dataclasses import asdict
 
 import pandas as pd
 
-from segonaut.reference.composite.decisions.thresholds import (
+from virassq.decisions.thresholds import (
     PeakDecisionThresholds,
 )
 

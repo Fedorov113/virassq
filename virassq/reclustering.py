@@ -32,7 +32,7 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from segonaut.reference.composite.search import mmseqs_database_exists
+from virassq.search import mmseqs_database_exists
 
 
 def read_contig_ids(path: Path) -> list[str]:
@@ -282,7 +282,7 @@ def run_reclustering_after_quarantine(
         cluster_count = sum(1 for line in handle if line.startswith(">"))
 
     result: dict[str, object] = {
-        "schema": "segonaut.quarantine_reclustering.v1",
+        "schema": "virassq.quarantine_reclustering.v1",
         "created_at": datetime.now(UTC).isoformat(),
         "source_sequence_database": str(sequence_database),
         "source_result_database": str(result_database),

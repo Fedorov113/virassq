@@ -25,8 +25,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from segonaut.annotations.viral_protein_titles import classify_viral_protein_title
-from segonaut.sql import parquet_columns, quote_sql_string
+from virassq.sql import parquet_columns, quote_sql_string
+from virassq.viral_protein_titles import classify_viral_protein_title
 
 # These are descriptive DIAMOND fields. ``best_*`` describes the top hit
 # overall; ``best_viral_*`` preserves the top viral hit even when a cellular
