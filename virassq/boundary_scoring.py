@@ -397,8 +397,13 @@ def score_selected_representatives(
     workers: int = 8,
     profile_batch_rows: int = 500_000,
     force: bool = False,
+    validate_input_tables: bool = True,
 ) -> dict[str, object]:
-    """Score selected representatives and write profiles plus alignment counts."""
+    """Score selected representatives and write profiles plus alignment counts.
+
+    Disable schema and ID checks only for tables already checked or generated
+    by the screening workflow. Output-count audits remain enabled.
+    """
 
     inputs = {"selected representatives": queries, "normalized alignments": alignments}
     missing_files = [
@@ -436,25 +441,26 @@ def score_selected_representatives(
     con = duckdb.connect()
     con.execute(f"PRAGMA threads={threads}")
     try:
-        missing_queries = sorted(QUERY_COLUMNS - parquet_columns(con, queries))
-        missing_alignments = sorted(
-            ALIGNMENT_COLUMNS - parquet_columns(con, alignments)
-        )
-        if missing_queries or missing_alignments:
-            raise ValueError(
-                "input schema mismatch: "
-                f"queries={missing_queries}, alignments={missing_alignments}"
+        if validate_input_tables:
+            missing_queries = sorted(QUERY_COLUMNS - parquet_columns(con, queries))
+            missing_alignments = sorted(
+                ALIGNMENT_COLUMNS - parquet_columns(con, alignments)
             )
-        duplicate_queries = con.execute(
-            f"""
-            SELECT count(*) - count(DISTINCT representative_contig_id)
-            FROM read_parquet({quote_sql_string(queries)})
-            """
-        ).fetchone()[0]
-        if duplicate_queries:
-            raise ValueError(
-                f"selected representative table has {duplicate_queries} duplicate IDs"
-            )
+            if missing_queries or missing_alignments:
+                raise ValueError(
+                    "input schema mismatch: "
+                    f"queries={missing_queries}, alignments={missing_alignments}"
+                )
+            duplicate_queries = con.execute(
+                f"""
+                SELECT count(*) - count(DISTINCT representative_contig_id)
+                FROM read_parquet({quote_sql_string(queries)})
+                """
+            ).fetchone()[0]
+            if duplicate_queries:
+                raise ValueError(
+                    f"selected representative table has {duplicate_queries} duplicate IDs"
+                )
         query_ids, selected_alignments = load_selected_alignments(
             con, queries, alignments
         )

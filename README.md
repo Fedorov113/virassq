@@ -9,3 +9,23 @@ We were hunting for segments of some RNA viruses when we noticed that some of th
 ![Alignment stacks in a composite contig and a continuous contig](assets/alignment_stacks.png)
 
 Alignment stacks in a composite contig (top) and a continuous contig (bottom). A target alignment spanning the complete boundary window prevents quarantine.
+
+## Run
+
+Install from a local clone (Python 3.11 or later):
+
+```bash
+python -m pip install .
+```
+
+Provide selected representatives (FASTA or an ID list), MMseqs2 alignments and prepared contig annotations. See [input formats and outputs](docs/input_formats.md) for the required columns.
+
+```bash
+virassq screen \
+  --representatives representatives.fasta \
+  --alignments alignments.tsv \
+  --annotations contig_best_hits.parquet \
+  --output-directory virassq_output
+```
+
+Results include boundary tables, representative actions and a quarantine ID list. The output directory must be new or empty. This command reports decisions; it does not trim sequences or recluster the collection. Use `virassq screen --help` for options.

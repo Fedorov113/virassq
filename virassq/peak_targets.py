@@ -263,8 +263,13 @@ def assign_peak_targets(
     *,
     threads: int = 8,
     force: bool = False,
+    validate_input_tables: bool = True,
 ) -> dict[str, object]:
-    """Write peak-target measurements after exact count agreement checks."""
+    """Write peak-target measurements after exact count agreement checks.
+
+    Disable schema and ID checks only for tables already checked or generated
+    by the screening workflow. Output-count audits remain enabled.
+    """
 
     if not peaks_path.is_file():
         raise FileNotFoundError(f"boundary score peak table does not exist: {peaks_path}")
@@ -278,28 +283,29 @@ def assign_peak_targets(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with duckdb.connect() as connection:
         connection.execute(f"PRAGMA threads={threads}")
-        missing_peaks = sorted(PEAK_COLUMNS - parquet_columns(connection, peaks_path))
-        if missing_peaks:
-            raise ValueError(
-                f"boundary score peak table is missing columns: {missing_peaks}"
+        if validate_input_tables:
+            missing_peaks = sorted(PEAK_COLUMNS - parquet_columns(connection, peaks_path))
+            if missing_peaks:
+                raise ValueError(
+                    f"boundary score peak table is missing columns: {missing_peaks}"
+                )
+            missing_alignments = sorted(
+                ALIGNMENT_COLUMNS - parquet_columns(connection, alignments_path)
             )
-        missing_alignments = sorted(
-            ALIGNMENT_COLUMNS - parquet_columns(connection, alignments_path)
-        )
-        if missing_alignments:
-            raise ValueError(
-                f"alignment table is missing columns: {missing_alignments}"
+            if missing_alignments:
+                raise ValueError(
+                    f"alignment table is missing columns: {missing_alignments}"
+                )
+            duplicate_peak_count = int(
+                connection.execute(
+                    f"""
+                    SELECT count(*) - count(DISTINCT peak_id)
+                    FROM read_parquet({quote_sql_string(peaks_path)})
+                    """
+                ).fetchone()[0]
             )
-        duplicate_peak_count = int(
-            connection.execute(
-                f"""
-                SELECT count(*) - count(DISTINCT peak_id)
-                FROM read_parquet({quote_sql_string(peaks_path)})
-                """
-            ).fetchone()[0]
-        )
-        if duplicate_peak_count:
-            raise ValueError("peak_id values must be unique")
+            if duplicate_peak_count:
+                raise ValueError("peak_id values must be unique")
 
         write_peak_targets(connection, peaks_path, alignments_path, output_path)
         mismatch_count = count_peak_target_mismatches(

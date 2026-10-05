@@ -142,8 +142,13 @@ def annotate_peak_targets_with_diamond_hits(
     *,
     threads: int = 8,
     force: bool = False,
+    validate_input_tables: bool = True,
 ) -> dict[str, object]:
-    """Join peak targets to DIAMOND hits and audit all retained target counts."""
+    """Join peak targets to DIAMOND hits and audit all retained target counts.
+
+    Disable schema and ID checks only for tables already checked or generated
+    by the screening workflow. Output-count audits remain enabled.
+    """
 
     for description, path in (
         ("boundary score peak table", peaks_path),
@@ -165,59 +170,60 @@ def annotate_peak_targets_with_diamond_hits(
         with duckdb.connect() as connection:
             connection.execute(f"PRAGMA threads={threads}")
 
-            missing_peaks = sorted(
-                PEAK_COLUMNS - parquet_columns(connection, peaks_path)
-            )
-            if missing_peaks:
-                raise ValueError(f"peak table is missing columns: {missing_peaks}")
-
-            missing_targets = sorted(
-                PEAK_TARGET_COLUMNS - parquet_columns(connection, peak_targets_path)
-            )
-            if missing_targets:
-                raise ValueError(
-                    f"peak target table is missing columns: {missing_targets}"
+            if validate_input_tables:
+                missing_peaks = sorted(
+                    PEAK_COLUMNS - parquet_columns(connection, peaks_path)
                 )
+                if missing_peaks:
+                    raise ValueError(f"peak table is missing columns: {missing_peaks}")
 
-            hit_columns = parquet_columns(connection, contig_best_hits_path)
-            missing_hits = sorted({"qseqid", "has_viral_hit"} - hit_columns)
-            if missing_hits:
-                raise ValueError(
-                    f"contig DIAMOND best-hit table is missing columns: {missing_hits}"
+                missing_targets = sorted(
+                    PEAK_TARGET_COLUMNS - parquet_columns(connection, peak_targets_path)
                 )
+                if missing_targets:
+                    raise ValueError(
+                        f"peak target table is missing columns: {missing_targets}"
+                    )
 
-            duplicate_peak_count = int(
-                connection.execute(
-                    f"""
-                    SELECT count(*) - count(DISTINCT peak_id)
-                    FROM read_parquet({quote_sql_string(peaks_path)})
-                    """
-                ).fetchone()[0]
-            )
-            if duplicate_peak_count:
-                raise ValueError("peak_id values must be unique")
+                hit_columns = parquet_columns(connection, contig_best_hits_path)
+                missing_hits = sorted({"qseqid", "has_viral_hit"} - hit_columns)
+                if missing_hits:
+                    raise ValueError(
+                        f"contig DIAMOND best-hit table is missing columns: {missing_hits}"
+                    )
 
-            duplicate_peak_target_count = int(
-                connection.execute(
-                    f"""
-                    SELECT count(*) - count(DISTINCT (peak_id, target_id))
-                    FROM read_parquet({quote_sql_string(peak_targets_path)})
-                    """
-                ).fetchone()[0]
-            )
-            if duplicate_peak_target_count:
-                raise ValueError("peak_id + target_id pairs must be unique")
+                duplicate_peak_count = int(
+                    connection.execute(
+                        f"""
+                        SELECT count(*) - count(DISTINCT peak_id)
+                        FROM read_parquet({quote_sql_string(peaks_path)})
+                        """
+                    ).fetchone()[0]
+                )
+                if duplicate_peak_count:
+                    raise ValueError("peak_id values must be unique")
 
-            duplicate_hit_count = int(
-                connection.execute(
-                    f"""
-                    SELECT count(*) - count(DISTINCT qseqid)
-                    FROM read_parquet({quote_sql_string(contig_best_hits_path)})
-                    """
-                ).fetchone()[0]
-            )
-            if duplicate_hit_count:
-                raise ValueError("qseqid values in contig best hits must be unique")
+                duplicate_peak_target_count = int(
+                    connection.execute(
+                        f"""
+                        SELECT count(*) - count(DISTINCT (peak_id, target_id))
+                        FROM read_parquet({quote_sql_string(peak_targets_path)})
+                        """
+                    ).fetchone()[0]
+                )
+                if duplicate_peak_target_count:
+                    raise ValueError("peak_id + target_id pairs must be unique")
+
+                duplicate_hit_count = int(
+                    connection.execute(
+                        f"""
+                        SELECT count(*) - count(DISTINCT qseqid)
+                        FROM read_parquet({quote_sql_string(contig_best_hits_path)})
+                        """
+                    ).fetchone()[0]
+                )
+                if duplicate_hit_count:
+                    raise ValueError("qseqid values in contig best hits must be unique")
 
             write_peak_target_annotations(
                 connection,

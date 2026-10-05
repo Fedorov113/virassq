@@ -70,8 +70,9 @@ Rule 3 is the mirrored prefix arrangement::
 Rules 2 and 3 use only alignments against ``R``. They do not require another
 representative.
 
-For manual review, the output also records whether an end peak on ``R1`` and a
-start peak on ``R2`` share at least three physical target-contig IDs::
+When exact Q-T-R links are supplied, the output also records whether an end
+peak on ``R1`` and a start peak on ``R2`` share at least three physical
+target-contig IDs::
 
     R1      [============== common region ==============|------ suffix X]
     T1-T3     ===========================================|
@@ -96,8 +97,9 @@ any target contig can cover the complete boundary window::
 
     spanning_target_count > 0                 -> review
 
-The output additionally records whether the end and start target groups occur
-near each other on another representative. The calculation accepts either a
+When alternative layouts are supplied, the output additionally records whether
+the end and start target groups occur near each other on another representative.
+The calculation accepts either a
 linear gap or a gap across the ends of its FASTA representation::
 
     alternative R, linear
@@ -340,9 +342,18 @@ def add_peak_rule_flags(
     peaks["has_spanning_targets"] = peaks["spanning_target_count"].gt(
         thresholds.max_spanning_target_count
     )
-    peaks["has_nearby_two_sided_alternative"] = peaks[
-        "nearby_two_sided_alternative_count"
-    ].gt(0)
+    # Omit uncalculated descriptors rather than report them as absent.
+    if "nearby_two_sided_alternative_count" in peaks.columns:
+        peaks["has_nearby_two_sided_alternative"] = peaks[
+            "nearby_two_sided_alternative_count"
+        ].gt(0)
+        peaks["rule_nearby_two_sided_alternative"] = peaks[
+            "has_nearby_two_sided_alternative"
+        ]
+    if "reciprocal_one_sided_pair_count" in peaks.columns:
+        peaks["rule_reciprocal_one_sided_pair"] = peaks[
+            "reciprocal_one_sided_pair_count"
+        ].gt(0)
 
     # For an end-dominant peak, the suffix is not represented by targets that
     # stop at the peak. For a start-dominant peak, the prefix is analogous.
@@ -360,9 +371,6 @@ def add_peak_rule_flags(
     )
 
     peaks["rule_targets_span_peak"] = peaks["has_spanning_targets"]
-    peaks["rule_nearby_two_sided_alternative"] = peaks[
-        "has_nearby_two_sided_alternative"
-    ]
     peaks["rule_two_sided_different_diamond_annotations"] = (
         peaks["enough_end_start_targets"]
         & peaks["enough_directional_or_overlap_b_score"]
@@ -375,10 +383,6 @@ def add_peak_rule_flags(
     )
     peaks["rule_strong_one_sided_end"] = end_peak & strong_one_sided
     peaks["rule_strong_one_sided_start"] = start_peak & strong_one_sided
-    peaks["rule_reciprocal_one_sided_pair"] = peaks[
-        "reciprocal_one_sided_pair_count"
-    ].gt(0)
-
     peaks["rule_insufficient_end_or_start_targets"] = ~peaks[
         "enough_end_start_targets"
     ]

@@ -9,11 +9,15 @@ description = "Find structural inconsistencies in viral representatives using co
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dependencies = [
+  "click>=8.1.0",
   "duckdb>=1.4.0",
   "numpy>=2.0.0",
   "pandas>=2.2.0",
   "pyarrow>=16.0.0",
 ]
+
+[project.scripts]
+virassq = "virassq.cli:cli"
 
 [project.urls]
 Repository = "https://github.com/Fedorov113/virassq"

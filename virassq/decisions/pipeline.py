@@ -1,19 +1,19 @@
 r"""Build and write peak-based composite decisions.
 
-This is the orchestration layer for already measured tables::
+The annotation summary already contains endpoint counts and dominant DIAMOND
+values. Alternative layouts and exact Q-T-R links are optional descriptions
+for manual review; neither changes the quarantine rules::
 
-    peak descriptions       alternative layouts       exact Q-T-R links
-             \                    |                    /
-              `----------- measured values ----------'
-                                  |
-                                  v
-                       independent rule flags
-                                  |
-                                  v
-                     one action per selected peak
-                                  |
-                                  v
-                   one action per representative
+    peak annotation summary -> end/start annotation relations
+                                        |
+                                        v
+                              independent rule flags
+                                        |
+                                        v
+                              one action per peak
+                                        |
+                                        v
+                         one action per representative
 
 ``review`` keeps a representative in the mapping FASTA. ``quarantine``
 excludes the complete sequence until it is replaced or manually accepted.
@@ -90,41 +90,42 @@ def require_columns(
 
 def build_peak_decisions(
     descriptions: pd.DataFrame,
-    layouts: pd.DataFrame,
-    links: pd.DataFrame,
-    thresholds: PeakDecisionThresholds,
+    layouts: pd.DataFrame | None = None,
+    links: pd.DataFrame | None = None,
+    thresholds: PeakDecisionThresholds = DEFAULT_PEAK_DECISION_THRESHOLDS,
 ) -> pd.DataFrame:
-    """Build one auditable action row for every selected score peak."""
+    """Assign actions from a peak annotation summary or prepared descriptions."""
 
-    require_columns(descriptions, DESCRIPTION_COLUMNS, "peak descriptions")
-    require_columns(layouts, LAYOUT_COLUMNS, "alternative layouts")
-    require_columns(links, LINK_COLUMNS, "alternative links")
-    if descriptions["peak_id"].duplicated().any():
-        raise ValueError("peak descriptions must contain one row per peak_id")
-
-    marked_layouts = mark_nearby_two_sided_alternative_layouts(layouts, thresholds)
-    alternatives = summarize_nearby_alternative_layouts(marked_layouts)
-    reciprocal_pairs = find_reciprocal_one_sided_pairs(descriptions, links, thresholds)
-    peaks = descriptions.merge(
-        alternatives, on="peak_id", how="left", validate="one_to_one"
-    ).merge(reciprocal_pairs, on="peak_id", how="left", validate="one_to_one")
-
-    peaks["nearby_two_sided_alternative_count"] = (
-        peaks["nearby_two_sided_alternative_count"].fillna(0).astype("int64")
-    )
-    peaks["reciprocal_one_sided_pair_count"] = (
-        peaks["reciprocal_one_sided_pair_count"].fillna(0).astype("int64")
-    )
-    peaks["maximum_reciprocal_shared_target_count"] = (
-        peaks["maximum_reciprocal_shared_target_count"].fillna(0).astype("int64")
-    )
-    for column in (
-        "reciprocal_one_sided_peak_ids",
-        "reciprocal_one_sided_query_ids",
-    ):
-        peaks[column] = peaks[column].apply(
-            lambda value: value if isinstance(value, list) else []
+    validate_peak_decision_thresholds(thresholds)
+    peaks = prepare_peak_decision_table(descriptions)
+    if layouts is not None:
+        require_columns(layouts, LAYOUT_COLUMNS, "alternative layouts")
+        marked_layouts = mark_nearby_two_sided_alternative_layouts(layouts, thresholds)
+        alternatives = summarize_nearby_alternative_layouts(marked_layouts)
+        peaks = peaks.merge(
+            alternatives, on="peak_id", how="left", validate="one_to_one"
         )
+        peaks["nearby_two_sided_alternative_count"] = (
+            peaks["nearby_two_sided_alternative_count"].fillna(0).astype("int64")
+        )
+    if links is not None:
+        require_columns(links, LINK_COLUMNS, "alternative links")
+        reciprocal_pairs = find_reciprocal_one_sided_pairs(peaks, links, thresholds)
+        peaks = peaks.merge(
+            reciprocal_pairs, on="peak_id", how="left", validate="one_to_one"
+        )
+        for column in (
+            "reciprocal_one_sided_pair_count",
+            "maximum_reciprocal_shared_target_count",
+        ):
+            peaks[column] = peaks[column].fillna(0).astype("int64")
+        for column in (
+            "reciprocal_one_sided_peak_ids",
+            "reciprocal_one_sided_query_ids",
+        ):
+            peaks[column] = peaks[column].apply(
+                lambda value: value if isinstance(value, list) else []
+            )
 
     add_diamond_annotation_difference_flags(peaks, thresholds)
     add_peak_rule_flags(peaks, thresholds)
@@ -145,6 +146,35 @@ def build_peak_decisions(
     return peaks.sort_values(
         ["query_id", "peak_position", "score_geometry", "peak_id"]
     ).reset_index(drop=True)
+
+
+def prepare_peak_decision_table(summary: pd.DataFrame) -> pd.DataFrame:
+    """Compare dominant end/start annotations without exploratory table joins."""
+
+    peaks = summary.copy()
+    for name in ("best_domain", "best_viral_family", "viral_protein_role"):
+        relation_column = f"end_start_{name}_relation"
+        if relation_column in peaks.columns:
+            continue
+        end_column = f"end_dominant_{name}"
+        start_column = f"start_dominant_{name}"
+        require_columns(peaks, {end_column, start_column}, "peak annotation summary")
+        end = peaks[end_column]
+        start = peaks[start_column]
+        relation = pd.Series(pd.NA, index=peaks.index, dtype="string")
+        # Missing DIAMOND values are not a distinct annotation group.
+        relation.loc[end.isna() & start.isna()] = "both_missing"
+        relation.loc[end.notna() & start.isna()] = "start_missing"
+        relation.loc[end.isna() & start.notna()] = "end_missing"
+        both_present = end.notna() & start.notna()
+        relation.loc[both_present & end.eq(start)] = "same"
+        relation.loc[both_present & end.ne(start)] = "different"
+        peaks[relation_column] = relation
+
+    require_columns(peaks, DESCRIPTION_COLUMNS, "peak descriptions")
+    if peaks["peak_id"].duplicated().any():
+        raise ValueError("peak descriptions must contain one row per peak_id")
+    return peaks
 
 
 def unique_rule_names(values: pd.Series) -> list[str]:
@@ -207,14 +237,18 @@ def count_rule_matches(values: pd.Series) -> dict[str, int]:
 
 def decide_peak_actions(
     peak_descriptions_path: Path,
-    alternative_layouts_path: Path,
-    alternative_links_path: Path,
     output_directory: Path,
     *,
+    alternative_layouts_path: Path | None = None,
+    alternative_links_path: Path | None = None,
     thresholds: PeakDecisionThresholds = DEFAULT_PEAK_DECISION_THRESHOLDS,
     force: bool = False,
 ) -> dict[str, object]:
-    """Write peak actions, representative actions and quarantine query IDs."""
+    """Write decisions from an annotation summary or prepared peak descriptions.
+
+    Optional alternative tables add manual-review columns. Omitted tables do
+    not imply zero alternative layouts or zero shared-target pairs.
+    """
 
     validate_peak_decision_thresholds(thresholds)
     for name, path in (
@@ -222,7 +256,7 @@ def decide_peak_actions(
         ("alternative layouts", alternative_layouts_path),
         ("alternative links", alternative_links_path),
     ):
-        if not path.is_file():
+        if path is not None and not path.is_file():
             raise FileNotFoundError(f"{name} do not exist: {path}")
 
     peak_output = output_directory / "peak_decisions.parquet"
@@ -237,11 +271,16 @@ def decide_peak_actions(
         raise FileExistsError(f"decision outputs already exist: {existing}")
 
     descriptions = pd.read_parquet(peak_descriptions_path)
-    layouts = pd.read_parquet(
-        alternative_layouts_path,
-        columns=sorted(LAYOUT_COLUMNS),
+    layouts = (
+        pd.read_parquet(alternative_layouts_path, columns=sorted(LAYOUT_COLUMNS))
+        if alternative_layouts_path is not None
+        else None
     )
-    links = pd.read_parquet(alternative_links_path, columns=sorted(LINK_COLUMNS))
+    links = (
+        pd.read_parquet(alternative_links_path, columns=sorted(LINK_COLUMNS))
+        if alternative_links_path is not None
+        else None
+    )
     peak_decisions = build_peak_decisions(descriptions, layouts, links, thresholds)
     representative_actions = build_representative_actions(peak_decisions)
 
@@ -262,6 +301,8 @@ def decide_peak_actions(
         "representative_actions": str(representative_output),
         "quarantine_query_ids": str(quarantine_ids_output),
         "thresholds": asdict(thresholds),
+        "alternative_layouts_examined": alternative_layouts_path is not None,
+        "reciprocal_one_sided_pairs_examined": alternative_links_path is not None,
         "peak_count": len(peak_decisions),
         "peak_action_counts": {
             str(action): int(count)
